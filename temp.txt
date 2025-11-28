@@ -1,0 +1,5 @@
+                TableTextColumn::make('current_utilization')
+                    ->getStateUsing(fn (Room $record) => $record->current_utilization)
+                TableTextColumn::make('utilization_percentage')
+                    ->getStateUsing(fn (Room $record) => number_format($record->utilization_percentage, 1) . '%')
+                    ->color(fn (Room $record) => $record->utilization_percentage > 90 ? 'danger' : ($record->utilization_percentage > 75 ? 'warning' : 'success'))
