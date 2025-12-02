@@ -7,6 +7,7 @@ use App\Filament\Resources\BatchResource;
 use App\Models\AuditLog;
 use App\Models\Batch;
 use App\Models\BatchStageHistory;
+use App\Models\BatchLog;
 use Filament\Actions;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
@@ -137,6 +138,197 @@ class ViewBatch extends ViewRecord
 
             Actions\EditAction::make(),
         ];
+    }
+
+    public function startStage(string $stageKey): void
+    {
+        /** @var Batch $batch */
+        $batch = $this->record->fresh();
+        $oldStage = $batch->status;
+
+        if (! $this->canManageStages()) {
+            $this->notifyDenied();
+            return;
+        }
+
+        $next = $this->nextStageKey($batch->status);
+        if (! $next || $next !== $stageKey) {
+            Notification::make()
+                ->title('Cannot start this stage')
+                ->body('Only the next pending stage can be started.')
+                ->danger()
+                ->send();
+            return;
+        }
+
+        if (! $batch->canProgressTo($stageKey)) {
+            Notification::make()
+                ->title('Invalid stage order')
+                ->body("Cannot progress from {$batch->status} to {$stageKey}.")
+                ->danger()
+                ->send();
+            return;
+        }
+
+        $this->createHistory($batch->status, $stageKey);
+        $batch->update($this->stageUpdatePayload($stageKey));
+
+        AuditLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'updated',
+            'model_type' => Batch::class,
+            'model_id' => $batch->id,
+            'changes' => [
+                'status' => [
+                    'before' => $oldStage,
+                    'after' => $stageKey,
+                ],
+            ],
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+        ]);
+
+        Notification::make()->title('Stage started')->body("Stage set to {$stageKey}.")->success()->send();
+        $this->refreshRecord();
+    }
+
+    public function completeStage(string $stageKey): void
+    {
+        /** @var Batch $batch */
+        $batch = $this->record->fresh();
+        $oldStage = $batch->status;
+
+        if (! $this->canManageStages()) {
+            $this->notifyDenied();
+            return;
+        }
+
+        if ($batch->status !== $stageKey) {
+            Notification::make()
+                ->title('Cannot complete')
+                ->body('Only the active stage can be completed.')
+                ->danger()
+                ->send();
+            return;
+        }
+
+        $next = $this->nextStageKey($stageKey);
+        if (! $next) {
+            Notification::make()
+                ->title('No next stage found')
+                ->body('This batch is already at the final stage.')
+                ->danger()
+                ->send();
+            return;
+        }
+
+        if (! $batch->canProgressTo($next)) {
+            Notification::make()
+                ->title('Invalid stage order')
+                ->body("Cannot progress from {$batch->status} to {$next}.")
+                ->danger()
+                ->send();
+            return;
+        }
+
+        $logCount = BatchLog::where('batch_id', $batch->id)
+            ->where('stage', $stageKey)
+            ->count();
+
+        if ($logCount < 1) {
+            Notification::make()
+                ->title('Add a daily log first')
+                ->body('Please add at least one daily log before completing this stage.')
+                ->warning()
+                ->send();
+            return;
+        }
+
+        $this->createHistory($stageKey, $next);
+        $batch->update($this->stageUpdatePayload($next));
+
+        AuditLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'updated',
+            'model_type' => Batch::class,
+            'model_id' => $batch->id,
+            'changes' => [
+                'status' => [
+                    'before' => $oldStage,
+                    'after' => $next,
+                ],
+            ],
+            'notes' => 'Completed stage via Stage Progression tab',
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+        ]);
+
+        Notification::make()->title('Stage completed')->body("Moved from {$stageKey} to {$next}.")->success()->send();
+        $this->refreshRecord();
+    }
+
+    protected function refreshRecord(): void
+    {
+        $this->record->refresh();
+        $this->dispatch('$refresh');
+    }
+
+    protected function canManageStages(): bool
+    {
+        $user = auth()->user();
+        return $user && ($user->hasRole(['Administrator', 'Cultivation Supervisor']) || $user->can('approve cultivation'));
+    }
+
+    protected function notifyDenied(): void
+    {
+        Notification::make()
+            ->title('Permission denied')
+            ->body('Only supervisors or approvers can change stages.')
+            ->danger()
+            ->send();
+    }
+
+    protected function nextStageKey(string $current): ?string
+    {
+        $keys = array_keys(Batch::STAGE_FLOW);
+        $index = array_search($current, $keys, true);
+        return $index === false ? null : ($keys[$index + 1] ?? null);
+    }
+
+    protected function stageUpdatePayload(string $newStage): array
+    {
+        $payload = ['status' => $newStage];
+
+        switch ($newStage) {
+            case 'clone':
+                $payload['clone_date'] = now();
+                break;
+            case 'vegetative':
+                $payload['veg_start_date'] = now();
+                break;
+            case 'flower':
+                $payload['flower_start_date'] = now();
+                break;
+            case 'harvest':
+                $payload['harvest_date'] = now();
+                break;
+        }
+
+        return $payload;
+    }
+
+    protected function createHistory(?string $from, string $to): void
+    {
+        BatchStageHistory::create([
+            'batch_id' => $this->record->id,
+            'from_stage' => $from,
+            'to_stage' => $to,
+            'transition_date' => now(),
+            'reason' => null,
+            'approved_by' => auth()->id(),
+            'approved_at' => now(),
+            'created_by' => auth()->id(),
+        ]);
     }
 }
 

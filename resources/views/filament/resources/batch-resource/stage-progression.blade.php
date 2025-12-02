@@ -7,6 +7,8 @@
     $logCounts = $logCounts ?? [];
     $logsByStage = $logsByStage ?? [];
     $stageLabels = collect($stages)->mapWithKeys(fn ($stage) => [$stage['key'] => $stage['label']]);
+    $currentStageKey = collect($stages)->firstWhere('state', 'current')['key'] ?? null;
+    $nextStageKey = collect($stages)->firstWhere('state', 'upcoming')['key'] ?? null;
 @endphp
 
 <div
@@ -55,6 +57,12 @@
 
         <div class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             @foreach ($stages as $stage)
+                @php
+                    $isCurrent = $stage['key'] === $currentStageKey;
+                    $isNext = $stage['key'] === $nextStageKey;
+                    $logCount = $logCounts[$stage['key']] ?? 0;
+                    $canComplete = $isCurrent && $logCount > 0;
+                @endphp
                 <div class="flex flex-col gap-3 rounded-2xl border border-gray-100 bg-gray-50/80 p-4 shadow-sm">
                     <div class="flex items-center gap-3">
                         <span class="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-base font-semibold text-gray-900 shadow-sm">
@@ -74,16 +82,51 @@
                             Date pending
                         @endif
                     </div>
-                    <button
-                        type="button"
-                        class="group inline-flex items-center gap-2 text-xs font-semibold text-primary-600 transition hover:text-primary-700"
-                        @click="openStage('{{ $stage['key'] }}')"
-                    >
-                        <span class="rounded-lg bg-primary-50 px-2.5 py-1 text-[11px] font-semibold text-primary-700 transition group-hover:bg-primary-100">
-                            {{ $logCounts[$stage['key']] ?? 0 }} daily log{{ ($logCounts[$stage['key']] ?? 0) === 1 ? '' : 's' }}
-                        </span>
-                        <span class="text-[10px] uppercase tracking-wide text-primary-500 transition group-hover:text-primary-700">View</span>
-                    </button>
+                    <div class="flex items-center justify-between">
+                        <button
+                            type="button"
+                            class="group inline-flex items-center gap-2 text-xs font-semibold text-primary-600 transition hover:text-primary-700"
+                            @click="openStage('{{ $stage['key'] }}')"
+                        >
+                            <span class="rounded-lg bg-primary-50 px-2.5 py-1 text-[11px] font-semibold text-primary-700 transition group-hover:bg-primary-100">
+                                {{ $logCount }} daily log{{ $logCount === 1 ? '' : 's' }}
+                            </span>
+                            <span class="text-[10px] uppercase tracking-wide text-primary-500 transition group-hover:text-primary-700">View</span>
+                        </button>
+
+                        @if ($isCurrent)
+                            <button
+                                type="button"
+                                wire:click="completeStage('{{ $stage['key'] }}')"
+                                class="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition {{ $canComplete ? 'bg-primary-600 hover:bg-primary-700' : 'bg-gray-300 cursor-not-allowed' }}"
+                                @if(! $canComplete) disabled @endif
+                            >
+                                <x-filament::icon icon="heroicon-o-check-circle" class="h-4 w-4" />
+                                Complete Stage
+                            </button>
+                        @elseif ($isNext)
+                            <button
+                                type="button"
+                                wire:click="startStage('{{ $stage['key'] }}')"
+                                class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+                            >
+                                <x-filament::icon icon="heroicon-o-play" class="h-4 w-4" />
+                                Start Stage
+                            </button>
+                        @else
+                            <span class="inline-flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1 text-[11px] font-semibold text-gray-500">
+                                <x-filament::icon icon="heroicon-o-clock" class="h-4 w-4" />
+                                Waiting
+                            </span>
+                        @endif
+                    </div>
+
+                    @if ($isCurrent && ! $canComplete)
+                        <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+                            <x-filament::icon icon="heroicon-o-light-bulb" class="mr-1 inline h-4 w-4" />
+                            Add at least one daily log before completing this stage.
+                        </div>
+                    @endif
                 </div>
             @endforeach
         </div>

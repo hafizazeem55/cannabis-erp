@@ -186,10 +186,117 @@
         @endif
 
         @if($activePrimaryTab === 'thresholds')
-            <div class="bg-white border rounded-lg shadow-sm p-6">
-                <p class="text-sm text-gray-700">Threshold management will be added here next. We will let you define alert ranges for rooms and tunnels and trigger notifications when readings exceed them.</p>
-            </div>
-        @endif
+    @php
+                $stageLabels = [
+                    'clone' => 'Clone Stage',
+                    'propagation' => 'Propagation Stage',
+                    'vegetative' => 'Vegetative Stage',
+                    'flower' => 'Flower Stage',
+                    'harvest' => 'Harvest Stage',
+                    'completed' => 'Completed / Cure',
+                ];
+                $parameterIcons = [
+                    'temperature' => 'heroicon-o-fire',
+                    'humidity' => 'heroicon-o-adjustments-vertical', // fallback icon; drop icon not installed
+                    'co2' => 'heroicon-o-cloud',
+                    'ph' => 'heroicon-o-beaker',
+                    'ec' => 'heroicon-o-sparkles',
+                ];
+        $severityClasses = [
+            'standard' => 'bg-emerald-100 text-emerald-700 border border-emerald-200',
+            'warning' => 'bg-amber-100 text-amber-800 border border-amber-200',
+            'critical' => 'bg-rose-100 text-rose-700 border border-rose-200',
+        ];
+    @endphp
+
+    <div class="flex items-center justify-between mb-4">
+        <div>
+            <p class="text-sm text-gray-500">Stage-based thresholds used for alerts and monitoring.</p>
+        </div>
+        <a href="{{ route('filament.admin.resources.environmental-thresholds.index') }}" class="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50">
+            <x-heroicon-o-pencil-square class="w-4 h-4" />
+            Manage thresholds
+        </a>
+    </div>
+
+    @if(empty($thresholdsByStage))
+        <div class="bg-white border rounded-lg shadow-sm p-6 text-sm text-gray-700">
+            No thresholds configured yet. Use "Manage thresholds" to add ranges for each stage and parameter.
+        </div>
+    @else
+        <div class="space-y-6">
+            @foreach($thresholdsByStage as $stage => $thresholds)
+                <div class="bg-white border rounded-xl shadow-sm p-4 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <x-heroicon-o-cog-6-tooth class="w-5 h-5 text-gray-500" />
+                            <h3 class="text-lg font-semibold text-gray-900">{{ $stageLabels[$stage] ?? ucfirst($stage) }}</h3>
+                        </div>
+                        <span class="text-xs text-gray-500">{{ count($thresholds) }} parameters</span>
+                    </div>
+
+                    <div class="grid gap-4 md:grid-cols-2">
+                        @foreach($thresholds as $threshold)
+                            @php
+                                $span = max(0.0001, $threshold['max'] - $threshold['min']);
+                                $targetPos = max(0, min(100, (($threshold['target'] - $threshold['min']) / $span) * 100));
+                                $severityClass = $severityClasses[$threshold['severity']] ?? $severityClasses['standard'];
+                                $icon = $parameterIcons[$threshold['parameter']] ?? 'heroicon-o-circle-stack';
+                            @endphp
+
+                            <div class="border rounded-lg p-4 bg-gray-50/80 space-y-3">
+                                <div class="flex items-start justify-between">
+                                    <div class="flex items-center gap-2">
+                                        <x-dynamic-component :component="$icon" class="w-5 h-5 text-amber-500" />
+                                        <div>
+                                            <p class="text-xs text-gray-500 uppercase tracking-wide">{{ ucfirst($threshold['parameter']) }}</p>
+                                            <p class="text-base font-semibold text-gray-900">{{ $threshold['label'] }}</p>
+                                        </div>
+                                    </div>
+                                    <span class="text-xs px-2 py-1 rounded-full {{ $severityClass }}">
+                                        {{ ucfirst($threshold['severity']) }}
+                                    </span>
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-3 text-sm text-gray-700">
+                                    <div>
+                                        <p class="text-xs text-gray-500">Range</p>
+                                        <p class="font-semibold">{{ number_format($threshold['min'], 2) }} - {{ number_format($threshold['max'], 2) }} {{ $threshold['unit'] }}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs text-gray-500">Target</p>
+                                        <p class="font-semibold">{{ number_format($threshold['target'], 2) }} {{ $threshold['unit'] }}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs text-gray-500">Tolerance</p>
+                                        <p class="font-semibold">+/-{{ number_format($threshold['tolerance'], 2) }}%</p>
+                                    </div>
+                                    @if(!empty($threshold['notes']))
+                                        <div class="col-span-2">
+                                            <p class="text-xs text-gray-500">Notes</p>
+                                            <p class="text-sm text-gray-700">{{ $threshold['notes'] }}</p>
+                                        </div>
+                                    @endif
+                                </div>
+
+                                <div class="pt-2">
+                                    <div class="h-2 rounded-full bg-gray-200 relative">
+                                        <div class="absolute left-0 top-0 h-2 rounded-full bg-emerald-500" style="width: {{ $targetPos }}%;"></div>
+                                    </div>
+                                    <div class="flex items-center justify-between text-[11px] text-gray-500 mt-1">
+                                        <span>{{ number_format($threshold['min'], 0) }}</span>
+                                        <span class="font-semibold text-gray-700">Target: {{ number_format($threshold['target'], 0) }} {{ $threshold['unit'] }}</span>
+                                        <span>{{ number_format($threshold['max'], 0) }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endforeach
+        </div>
+    @endif
+@endif
     </div>
 
     @once
@@ -198,8 +305,20 @@
 
     <script>
         document.addEventListener('livewire:init', () => {
-            const ctx = document.getElementById('trendChart')?.getContext('2d');
-            if (!ctx) return;
+            let chart = null;
+            let lastPayload = {
+                labels: @js($trendLabels),
+                series: @js($trendSeries),
+                parameter: @js($trendParameter),
+            };
+
+            const labelMap = {
+                temperature: 'Temperature (C)',
+                humidity: 'Humidity (%)',
+                co2: 'CO2 (ppm)',
+                ph: 'pH',
+                ec: 'EC (mS/cm)',
+            };
 
             const buildConfig = (labels, data, label) => ({
                 type: 'line',
@@ -225,24 +344,35 @@
                 },
             });
 
-            let chart = new Chart(ctx, buildConfig(@js($trendLabels), @js($trendSeries), 'Reading'));
+            const renderChart = (payload) => {
+                lastPayload = payload;
 
-            const updateChart = (labels, data, label) => {
-                chart.data.labels = labels;
-                chart.data.datasets[0].data = data;
-                chart.data.datasets[0].label = label;
+                const ctx = document.getElementById('trendChart')?.getContext('2d');
+                if (!ctx) {
+                    return;
+                }
+
+                if (!chart) {
+                    chart = new Chart(ctx, buildConfig(payload.labels, payload.series, labelMap[payload.parameter] ?? 'Reading'));
+                    return;
+                }
+
+                chart.data.labels = payload.labels;
+                chart.data.datasets[0].data = payload.series;
+                chart.data.datasets[0].label = labelMap[payload.parameter] ?? 'Reading';
                 chart.update();
             };
 
+            renderChart(lastPayload);
+
             Livewire.on('trend-data-updated', (payload) => {
-                const labelMap = {
-                    temperature: 'Temperature (°C)',
-                    humidity: 'Humidity (%)',
-                    co2: 'CO₂ (ppm)',
-                    ph: 'pH',
-                    ec: 'EC (mS/cm)',
-                };
-                updateChart(payload.labels, payload.series, labelMap[payload.parameter] ?? 'Reading');
+                renderChart(payload);
+            });
+
+            Livewire.hook('message.processed', () => {
+                if (!chart && document.getElementById('trendChart')) {
+                    renderChart(lastPayload);
+                }
             });
         });
     </script>

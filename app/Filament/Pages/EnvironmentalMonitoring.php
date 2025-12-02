@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Models\BatchLog;
+use App\Models\EnvironmentalThreshold;
 use App\Models\Room;
 use App\Models\Tunnel;
 use Carbon\Carbon;
@@ -27,6 +28,16 @@ class EnvironmentalMonitoring extends Page
     public int $trendDays = 30;
     public array $trendLabels = [];
     public array $trendSeries = [];
+    public array $thresholdsByStage = [];
+
+    protected array $stageOrder = [
+        'clone',
+        'propagation',
+        'vegetative',
+        'flower',
+        'harvest',
+        'completed',
+    ];
 
     public function mount(): void
     {
@@ -34,6 +45,7 @@ class EnvironmentalMonitoring extends Page
         $this->loadLiveCards();
         $this->setDefaultTrendSpaceIfNeeded();
         $this->loadTrendData();
+        $this->loadThresholds();
     }
 
     public static function shouldRegisterNavigation(): bool
@@ -185,6 +197,16 @@ class EnvironmentalMonitoring extends Page
             ->orderBy('log_date')
             ->get(['log_date', $column]);
 
+        // If the requested window has no data, retry without the date window to show the latest available history.
+        if ($records->whereNotNull($column)->isEmpty()) {
+            $records = BatchLog::query()
+                ->when($type === 'room', fn ($query) => $query->where('room_id', (int) $id))
+                ->when($type === 'tunnel' && $hasTunnelColumn, fn ($query) => $query->where('tunnel_id', (int) $id))
+                ->whereNotNull($column)
+                ->orderBy('log_date')
+                ->get(['log_date', $column]);
+        }
+
         // If no data for this space/parameter, try the most recent space that has data.
         if ($records->whereNotNull($column)->isEmpty()) {
             $fallbackSpace = $this->findSpaceWithData($column, $startDate, $hasTunnelColumn);
@@ -209,6 +231,39 @@ class EnvironmentalMonitoring extends Page
             series: $this->trendSeries,
             parameter: $this->trendParameter
         )->self();
+    }
+
+    protected function loadThresholds(): void
+    {
+        $caseOrder = "FIELD(stage, '" . implode("','", $this->stageOrder) . "')";
+
+        $thresholds = EnvironmentalThreshold::query()
+            ->active()
+            ->orderByRaw($caseOrder)
+            ->orderBy('parameter')
+            ->get()
+            ->groupBy('stage')
+            ->map(function (Collection $items) {
+                return $items->map(function (EnvironmentalThreshold $threshold) {
+                    return [
+                        'id' => $threshold->id,
+                        'stage' => $threshold->stage,
+                        'parameter' => $threshold->parameter,
+                        'label' => $this->parameterLabel($threshold->parameter),
+                        'min' => (float) $threshold->min_value,
+                        'max' => (float) $threshold->max_value,
+                        'target' => (float) $threshold->target_value,
+                        'tolerance' => (float) $threshold->tolerance_percent,
+                        'severity' => $threshold->severity,
+                        'unit' => $this->parameterUnit($threshold->parameter),
+                        'notes' => $threshold->notes,
+                    ];
+                })->values();
+            })
+            ->filter()
+            ->toArray();
+
+        $this->thresholdsByStage = $thresholds;
     }
 
     public function updatedTrendSpace(): void
@@ -247,6 +302,13 @@ class EnvironmentalMonitoring extends Page
             ->orderByDesc('log_date')
             ->first();
 
+        if (! $log) {
+            $log = BatchLog::query()
+                ->whereNotNull($column)
+                ->orderByDesc('log_date')
+                ->first();
+        }
+
         if ($log?->room_id && $spaceSlugs->contains('room:' . $log->room_id)) {
             return 'room:' . $log->room_id;
         }
@@ -283,5 +345,29 @@ class EnvironmentalMonitoring extends Page
         }
 
         $this->trendSpace = $spaceSlugs->first() ?: null;
+    }
+
+    protected function parameterLabel(string $parameter): string
+    {
+        return match ($parameter) {
+            'temperature' => 'Temperature',
+            'humidity' => 'Humidity',
+            'co2' => 'CO2',
+            'ph' => 'pH',
+            'ec' => 'EC',
+            default => ucfirst($parameter),
+        };
+    }
+
+    protected function parameterUnit(string $parameter): string
+    {
+        return match ($parameter) {
+            'temperature' => '°C',
+            'humidity' => '%',
+            'co2' => 'ppm',
+            'ph' => '',
+            'ec' => 'mS/cm',
+            default => '',
+        };
     }
 }
