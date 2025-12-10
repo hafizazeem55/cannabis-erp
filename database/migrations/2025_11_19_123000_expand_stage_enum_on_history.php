@@ -6,11 +6,12 @@ use Illuminate\Support\Facades\DB;
 return new class extends Migration
 {
     private array $stages = [
-        'clone',
-        'propagation',
+        'cloning',
         'vegetative',
-        'flower',
+        'flowering',
         'harvest',
+        'drying',
+        'curing',
         'packaging',
         'completed',
     ];

@@ -40,11 +40,11 @@ class CultivationStatsWidget extends BaseWidget
 
         // Batches by Stage
         if ($user?->can('manage cultivation') || $user?->can('view cultivation') || $user?->hasRole('Administrator')) {
-            $cloneCount = Batch::where('status', 'clone')->where('is_active', true)->count();
+            $cloneCount = Batch::whereIn('status', ['cloning', 'clone', 'propagation'])->where('is_active', true)->count();
             $vegCount = Batch::where('status', 'vegetative')->where('is_active', true)->count();
-            $flowerCount = Batch::where('status', 'flower')->where('is_active', true)->count();
+            $flowerCount = Batch::whereIn('status', ['flowering', 'flower'])->where('is_active', true)->count();
 
-            $cards[] = Card::make('Batches by Stage', "Clone: {$cloneCount} | Veg: {$vegCount} | Flower: {$flowerCount}")
+            $cards[] = Card::make('Batches by Stage', "Cloning: {$cloneCount} | Veg: {$vegCount} | Flowering: {$flowerCount}")
                 ->description('Current stage distribution')
                 ->descriptionIcon('heroicon-m-chart-bar')
                 ->color('info');
@@ -66,7 +66,7 @@ class CultivationStatsWidget extends BaseWidget
         // Upcoming Harvests
         if ($user?->can('manage cultivation') || $user?->can('view cultivation') || $user?->hasRole('Administrator')) {
             $upcomingHarvests = Batch::where('is_active', true)
-                ->where('status', 'flower')
+                ->whereIn('status', ['flowering', 'flower'])
                 ->whereNotNull('expected_harvest_date')
                 ->where('expected_harvest_date', '<=', now()->addDays(7))
                 ->count();
@@ -141,7 +141,7 @@ class CultivationStatsWidget extends BaseWidget
         for ($i = 0; $i < 7; $i++) {
             $date = now()->addDays($i)->format('Y-m-d');
             $count = Batch::where('is_active', true)
-                ->where('status', 'flower')
+                ->whereIn('status', ['flowering', 'flower'])
                 ->whereNotNull('expected_harvest_date')
                 ->whereDate('expected_harvest_date', $date)
                 ->count();

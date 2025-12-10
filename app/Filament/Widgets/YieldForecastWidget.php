@@ -39,7 +39,7 @@ class YieldForecastWidget extends ChartWidget
         // If no harvests, show upcoming batches forecast
         if (empty($expected)) {
             $upcomingBatches = Batch::where('is_active', true)
-                ->where('status', 'flower')
+                ->whereIn('status', ['flowering', 'flower'])
                 ->whereNotNull('expected_harvest_date')
                 ->where('expected_harvest_date', '<=', now()->addMonths(3))
                 ->selectRaw('MONTH(expected_harvest_date) as month, YEAR(expected_harvest_date) as year, 

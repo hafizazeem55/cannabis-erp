@@ -348,6 +348,17 @@ class BatchLogResource extends Resource
             return null;
         }
 
-        return Batch::find($batchId)?->status;
+        $batch = Batch::find($batchId);
+
+        return $batch ? static::normalizeStage($batch->status) : null;
+    }
+
+    public static function normalizeStage(?string $stage): ?string
+    {
+        return match ($stage) {
+            'clone', 'propagation' => 'cloning',
+            'flower' => 'flowering',
+            default => $stage,
+        };
     }
 }

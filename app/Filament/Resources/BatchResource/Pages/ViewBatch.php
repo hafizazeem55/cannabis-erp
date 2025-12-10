@@ -36,7 +36,7 @@ class ViewBatch extends ViewRecord
                         ->label('New Stage')
                         ->required()
                         ->options(collect(Batch::STAGE_FLOW)
-                            ->except('clone')
+                            ->except('cloning')
                             ->mapWithKeys(fn (array $config, string $key) => [$key => $config['label']])
                             ->toArray()
                         )
@@ -48,13 +48,13 @@ class ViewBatch extends ViewRecord
                 ->action(function (array $data): void {
                     /** @var Batch $batch */
                     $batch = $this->record;
-                    $newStage = $data['new_stage'];
+                    $newStage = $this->normalizeStage($data['new_stage']);
                     $reason = $data['reason'] ?? '';
 
                     if (! $batch->canProgressTo($newStage)) {
                         Notification::make()
                             ->title('Invalid Stage Progression')
-                            ->body("Cannot progress from {$batch->status} to {$newStage}.")
+                            ->body("Cannot progress from {$this->normalizeStage($batch->status)} to {$newStage}.")
                             ->danger()
                             ->send();
 
@@ -72,7 +72,7 @@ class ViewBatch extends ViewRecord
                         return;
                     }
 
-                    $oldStage = $batch->status;
+                    $oldStage = $this->normalizeStage($batch->status);
 
                     BatchStageHistory::create([
                         'batch_id' => $batch->id,
@@ -88,10 +88,13 @@ class ViewBatch extends ViewRecord
                     $updateData = ['status' => $newStage];
 
                     switch ($newStage) {
+                        case 'cloning':
+                            $updateData['clone_date'] = now();
+                            break;
                         case 'vegetative':
                             $updateData['veg_start_date'] = now();
                             break;
-                        case 'flower':
+                        case 'flowering':
                             $updateData['flower_start_date'] = now();
                             break;
                         case 'harvest':
@@ -144,15 +147,16 @@ class ViewBatch extends ViewRecord
     {
         /** @var Batch $batch */
         $batch = $this->record->fresh();
-        $oldStage = $batch->status;
+        $currentStage = $this->normalizeStage($batch->status);
+        $targetStage = $this->normalizeStage($stageKey);
 
         if (! $this->canManageStages()) {
             $this->notifyDenied();
             return;
         }
 
-        $next = $this->nextStageKey($batch->status);
-        if (! $next || $next !== $stageKey) {
+        $next = $this->nextStageKey($currentStage);
+        if (! $next || $next !== $targetStage) {
             Notification::make()
                 ->title('Cannot start this stage')
                 ->body('Only the next pending stage can be started.')
@@ -161,17 +165,17 @@ class ViewBatch extends ViewRecord
             return;
         }
 
-        if (! $batch->canProgressTo($stageKey)) {
+        if (! $batch->canProgressTo($targetStage)) {
             Notification::make()
                 ->title('Invalid stage order')
-                ->body("Cannot progress from {$batch->status} to {$stageKey}.")
+                ->body("Cannot progress from {$currentStage} to {$targetStage}.")
                 ->danger()
                 ->send();
             return;
         }
 
-        $this->createHistory($batch->status, $stageKey);
-        $batch->update($this->stageUpdatePayload($stageKey));
+        $this->createHistory($currentStage, $targetStage);
+        $batch->update($this->stageUpdatePayload($targetStage));
 
         AuditLog::create([
             'user_id' => auth()->id(),
@@ -180,15 +184,15 @@ class ViewBatch extends ViewRecord
             'model_id' => $batch->id,
             'changes' => [
                 'status' => [
-                    'before' => $oldStage,
-                    'after' => $stageKey,
+                    'before' => $currentStage,
+                    'after' => $targetStage,
                 ],
             ],
             'ip_address' => request()->ip(),
             'user_agent' => request()->userAgent(),
         ]);
 
-        Notification::make()->title('Stage started')->body("Stage set to {$stageKey}.")->success()->send();
+        Notification::make()->title('Stage started')->body("Stage set to {$targetStage}.")->success()->send();
         $this->refreshRecord();
     }
 
@@ -203,7 +207,10 @@ class ViewBatch extends ViewRecord
             return;
         }
 
-        if ($batch->status !== $stageKey) {
+        $currentStage = $this->normalizeStage($batch->status);
+        $targetStage = $this->normalizeStage($stageKey);
+
+        if ($currentStage !== $targetStage) {
             Notification::make()
                 ->title('Cannot complete')
                 ->body('Only the active stage can be completed.')
@@ -212,7 +219,7 @@ class ViewBatch extends ViewRecord
             return;
         }
 
-        $next = $this->nextStageKey($stageKey);
+        $next = $this->nextStageKey($targetStage);
         if (! $next) {
             Notification::make()
                 ->title('No next stage found')
@@ -232,7 +239,7 @@ class ViewBatch extends ViewRecord
         }
 
         $logCount = BatchLog::where('batch_id', $batch->id)
-            ->where('stage', $stageKey)
+            ->whereIn('stage', $this->stageAliases($targetStage))
             ->count();
 
         if ($logCount < 1) {
@@ -244,7 +251,7 @@ class ViewBatch extends ViewRecord
             return;
         }
 
-        $this->createHistory($stageKey, $next);
+        $this->createHistory($targetStage, $next);
         $batch->update($this->stageUpdatePayload($next));
 
         AuditLog::create([
@@ -254,7 +261,7 @@ class ViewBatch extends ViewRecord
             'model_id' => $batch->id,
             'changes' => [
                 'status' => [
-                    'before' => $oldStage,
+                    'before' => $currentStage,
                     'after' => $next,
                 ],
             ],
@@ -263,7 +270,7 @@ class ViewBatch extends ViewRecord
             'user_agent' => request()->userAgent(),
         ]);
 
-        Notification::make()->title('Stage completed')->body("Moved from {$stageKey} to {$next}.")->success()->send();
+        Notification::make()->title('Stage completed')->body("Moved from {$targetStage} to {$next}.")->success()->send();
         $this->refreshRecord();
     }
 
@@ -290,8 +297,9 @@ class ViewBatch extends ViewRecord
 
     protected function nextStageKey(string $current): ?string
     {
+        $normalized = $this->normalizeStage($current);
         $keys = array_keys(Batch::STAGE_FLOW);
-        $index = array_search($current, $keys, true);
+        $index = array_search($normalized, $keys, true);
         return $index === false ? null : ($keys[$index + 1] ?? null);
     }
 
@@ -300,13 +308,13 @@ class ViewBatch extends ViewRecord
         $payload = ['status' => $newStage];
 
         switch ($newStage) {
-            case 'clone':
+            case 'cloning':
                 $payload['clone_date'] = now();
                 break;
             case 'vegetative':
                 $payload['veg_start_date'] = now();
                 break;
-            case 'flower':
+            case 'flowering':
                 $payload['flower_start_date'] = now();
                 break;
             case 'harvest':
@@ -319,10 +327,13 @@ class ViewBatch extends ViewRecord
 
     protected function createHistory(?string $from, string $to): void
     {
+        $fromStage = $from ? $this->normalizeStage($from) : null;
+        $toStage = $this->normalizeStage($to);
+
         BatchStageHistory::create([
             'batch_id' => $this->record->id,
-            'from_stage' => $from,
-            'to_stage' => $to,
+            'from_stage' => $fromStage,
+            'to_stage' => $toStage,
             'transition_date' => now(),
             'reason' => null,
             'approved_by' => auth()->id(),
@@ -330,5 +341,22 @@ class ViewBatch extends ViewRecord
             'created_by' => auth()->id(),
         ]);
     }
-}
 
+    protected function normalizeStage(?string $stage): string
+    {
+        return match ($stage) {
+            'clone', 'propagation' => 'cloning',
+            'flower' => 'flowering',
+            default => $stage ?? 'cloning',
+        };
+    }
+
+    protected function stageAliases(string $stage): array
+    {
+        return match ($stage) {
+            'cloning' => ['cloning', 'clone', 'propagation'],
+            'flowering' => ['flowering', 'flower'],
+            default => [$stage],
+        };
+    }
+}

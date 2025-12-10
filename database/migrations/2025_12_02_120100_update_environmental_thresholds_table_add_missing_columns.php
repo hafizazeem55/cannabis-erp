@@ -14,8 +14,8 @@ return new class extends Migration
 
         Schema::table('environmental_thresholds', function (Blueprint $table) {
             if (! Schema::hasColumn('environmental_thresholds', 'stage')) {
-                $table->enum('stage', ['clone', 'propagation', 'vegetative', 'flower', 'harvest', 'completed'])
-                    ->default('clone');
+                $table->enum('stage', ['cloning', 'vegetative', 'flowering', 'harvest', 'drying', 'curing', 'packaging', 'completed'])
+                    ->default('cloning');
             }
 
             if (! Schema::hasColumn('environmental_thresholds', 'parameter')) {

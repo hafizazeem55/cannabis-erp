@@ -15,11 +15,13 @@ return new class extends Migration
         Schema::create('environmental_thresholds', function (Blueprint $table) {
             $table->id();
             $table->enum('stage', [
-                'clone',
-                'propagation',
+                'cloning',
                 'vegetative',
-                'flower',
+                'flowering',
                 'harvest',
+                'drying',
+                'curing',
+                'packaging',
                 'completed',
             ]);
             $table->enum('parameter', [

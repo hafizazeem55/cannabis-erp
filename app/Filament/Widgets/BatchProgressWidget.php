@@ -52,18 +52,26 @@ class BatchProgressWidget extends BaseWidget
                 TextColumn::make('status')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
-                        'clone', 'propagation' => 'gray',
+                        'cloning', 'clone', 'propagation' => 'gray',
                         'vegetative' => 'info',
-                        'flower' => 'warning',
+                        'flowering', 'flower' => 'warning',
                         'harvest' => 'success',
+                        'drying' => 'warning',
+                        'curing' => 'info',
+                        'packaging', 'completed' => 'success',
                         default => 'gray',
                     })
                     ->formatStateUsing(fn (string $state): string => match ($state) {
-                        'clone' => 'Clone/Propagation',
+                        'cloning' => 'Cloning',
+                        'clone' => 'Clone',
                         'propagation' => 'Propagation',
                         'vegetative' => 'Vegetative',
-                        'flower' => 'Flower',
+                        'flowering', 'flower' => 'Flowering',
                         'harvest' => 'Harvest',
+                        'drying' => 'Drying',
+                        'curing' => 'Curing',
+                        'packaging' => 'Packaging',
+                        'completed' => 'Completed',
                         default => ucfirst($state),
                     }),
 

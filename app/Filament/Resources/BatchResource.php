@@ -123,7 +123,7 @@ class BatchResource extends Resource
                         ->label('Status')
                         ->required()
                         ->options(static::statusOptions())
-                        ->default('clone')
+                        ->default('cloning')
                         ->native(false)
                         ->disabled(fn ($record) => $record && in_array($record->status, ['completed', 'cancelled'])),
                 ])
@@ -495,10 +495,13 @@ class BatchResource extends Resource
     protected static function statusColor(string $state): string
     {
         return match ($state) {
-            'clone', 'propagation' => 'gray',
+            'cloning', 'clone', 'propagation' => 'gray',
             'vegetative' => 'info',
-            'flower' => 'warning',
-            'harvest', 'packaging', 'completed' => 'success',
+            'flowering', 'flower' => 'warning',
+            'harvest' => 'success',
+            'drying' => 'warning',
+            'curing' => 'info',
+            'packaging', 'completed' => 'success',
             'cancelled' => 'danger',
             default => 'gray',
         };

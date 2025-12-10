@@ -43,7 +43,7 @@ class HarvestResource extends Resource
                         ->label('Batch')
                         ->relationship('batch', 'batch_code', fn (Builder $query) => 
                             $query->where('is_active', true)
-                                ->whereIn('status', ['flower', 'harvest'])
+                                ->whereIn('status', ['flowering', 'flower', 'harvest', 'drying'])
                         )
                         ->required()
                         ->searchable()

@@ -21,10 +21,13 @@ class BatchesByStageWidget extends ChartWidget
     protected function getData(): array
     {
         $stages = [
-            'Clone/Propagation' => Batch::whereIn('status', ['clone', 'propagation'])->where('is_active', true)->count(),
+            'Cloning' => Batch::whereIn('status', ['cloning', 'clone', 'propagation'])->where('is_active', true)->count(),
             'Vegetative' => Batch::where('status', 'vegetative')->where('is_active', true)->count(),
-            'Flower' => Batch::where('status', 'flower')->where('is_active', true)->count(),
+            'Flowering' => Batch::whereIn('status', ['flowering', 'flower'])->where('is_active', true)->count(),
             'Harvest' => Batch::where('status', 'harvest')->where('is_active', true)->count(),
+            'Drying' => Batch::where('status', 'drying')->where('is_active', true)->count(),
+            'Curing' => Batch::where('status', 'curing')->where('is_active', true)->count(),
+            'Packaging' => Batch::where('status', 'packaging')->where('is_active', true)->count(),
         ];
 
         return [
@@ -33,10 +36,13 @@ class BatchesByStageWidget extends ChartWidget
                     'label' => 'Batches',
                     'data' => array_values($stages),
                     'backgroundColor' => [
-                        'rgb(156, 163, 175)', // gray for clone
+                        'rgb(156, 163, 175)', // gray for cloning
                         'rgb(59, 130, 246)', // blue for veg
-                        'rgb(251, 191, 36)', // yellow for flower
+                        'rgb(251, 191, 36)', // yellow for flowering
                         'rgb(34, 197, 94)',  // green for harvest
+                        'rgb(234, 179, 8)',  // amber for drying
+                        'rgb(52, 211, 153)', // teal for curing
+                        'rgb(99, 102, 241)', // indigo for packaging
                     ],
                 ],
             ],

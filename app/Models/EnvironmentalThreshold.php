@@ -27,11 +27,13 @@ class EnvironmentalThreshold extends Model
     ];
 
     public const STAGES = [
-        'clone',
-        'propagation',
+        'cloning',
         'vegetative',
-        'flower',
+        'flowering',
         'harvest',
+        'drying',
+        'curing',
+        'packaging',
         'completed',
     ];
 

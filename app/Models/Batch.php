@@ -159,52 +159,48 @@ class Batch extends Model
     }
 
     public const STAGE_FLOW = [
-        'clone' => [
-            'label' => 'Cloning',
-        ],
-        'propagation' => [
-            'label' => 'Propagation',
-        ],
-        'vegetative' => [
-            'label' => 'Vegetative',
-        ],
-        'flower' => [
-            'label' => 'Flower',
-        ],
-        'harvest' => [
-            'label' => 'Harvest',
-        ],
-        'packaging' => [
-            'label' => 'Packaging',
-        ],
-        'completed' => [
-            'label' => 'Completed',
-        ],
+        'cloning' => ['label' => 'Cloning'],
+        'vegetative' => ['label' => 'Vegetative'],
+        'flowering' => ['label' => 'Flowering'],
+        'harvest' => ['label' => 'Harvest'],
+        'drying' => ['label' => 'Drying'],
+        'curing' => ['label' => 'Curing'],
+        'packaging' => ['label' => 'Packaging'],
+        'completed' => ['label' => 'Completed'],
     ];
 
     public function canProgressTo(string $newStage): bool
     {
         $validProgressions = [
-            'clone' => ['propagation', 'vegetative'],
-            'propagation' => ['vegetative'],
-            'vegetative' => ['flower'],
-            'flower' => ['harvest', 'packaging', 'completed'],
-            'harvest' => ['packaging', 'completed'],
+            'cloning' => ['vegetative'],
+            'vegetative' => ['flowering'],
+            'flowering' => ['harvest'],
+            'harvest' => ['drying'],
+            'drying' => ['curing'],
+            'curing' => ['packaging'],
             'packaging' => ['completed'],
         ];
 
-        return in_array($newStage, $validProgressions[$this->status] ?? []);
+        $currentStage = $this->normalizeStage($this->status);
+        $targetStage = $this->normalizeStage($newStage);
+
+        return in_array($targetStage, $validProgressions[$currentStage] ?? [], true);
     }
 
     public function stageProgressionSteps(): array
     {
-        $currentStatus = $this->status ?? 'clone';
+        $currentStatus = $this->normalizeStage($this->status ?? 'cloning');
         if (! array_key_exists($currentStatus, self::STAGE_FLOW)) {
             $currentStatus = 'completed';
         }
         $history = $this->stageHistory()
             ->orderBy('transition_date')
-            ->get();
+            ->get()
+            ->map(function ($entry) {
+                $entry->from_stage = $this->normalizeStage($entry->from_stage);
+                $entry->to_stage = $this->normalizeStage($entry->to_stage);
+                return $entry;
+            });
 
         $stages = [];
         $reachedCurrent = false;
@@ -261,5 +257,15 @@ class Batch extends Model
 
         return $stages;
     }
-}
 
+    protected function normalizeStage(?string $stage): string
+    {
+        $map = [
+            'clone' => 'cloning',
+            'propagation' => 'cloning',
+            'flower' => 'flowering',
+        ];
+
+        return $map[$stage] ?? ($stage ?? 'cloning');
+    }
+}

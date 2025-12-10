@@ -4,6 +4,7 @@ namespace App\Filament\Resources\BatchResource\Pages;
 
 use App\Filament\Resources\BatchResource;
 use App\Models\AuditLog;
+use App\Models\Batch;
 use App\Models\BatchStageHistory;
 use App\Models\Room;
 use Filament\Actions;
@@ -25,14 +26,10 @@ class EditBatch extends EditRecord
                     \Filament\Forms\Components\Select::make('new_stage')
                         ->label('New Stage')
                         ->required()
-                        ->options([
-                            'propagation' => 'Propagation',
-                            'vegetative' => 'Vegetative',
-                            'flower' => 'Flower',
-                            'harvest' => 'Harvest',
-                            'packaging' => 'Packaging',
-                            'completed' => 'Completed',
-                        ])
+                        ->options(collect(Batch::STAGE_FLOW)
+                            ->except('cloning')
+                            ->mapWithKeys(fn (array $config, string $key) => [$key => $config['label']])
+                            ->toArray())
                         ->native(false),
                     \Filament\Forms\Components\Textarea::make('reason')
                         ->label('Reason')
@@ -46,7 +43,7 @@ class EditBatch extends EditRecord
                     if (!$batch->canProgressTo($newStage)) {
                         Notification::make()
                             ->title('Invalid Stage Progression')
-                            ->body("Cannot progress from {$batch->status} to {$newStage}")
+                            ->body("Cannot progress from {$this->normalizeStage($batch->status)} to {$newStage}")
                             ->danger()
                             ->send();
                         return;
@@ -64,12 +61,14 @@ class EditBatch extends EditRecord
                     }
 
                     $oldStage = $batch->status;
+                    $normalizedOldStage = $this->normalizeStage($oldStage);
+                    $normalizedNewStage = $this->normalizeStage($newStage);
 
                     // Record stage history
                     BatchStageHistory::create([
                         'batch_id' => $batch->id,
-                        'from_stage' => $oldStage,
-                        'to_stage' => $newStage,
+                        'from_stage' => $normalizedOldStage,
+                        'to_stage' => $normalizedNewStage,
                         'transition_date' => now(),
                         'reason' => $reason,
                         'approved_by' => auth()->id(),
@@ -78,13 +77,16 @@ class EditBatch extends EditRecord
                     ]);
 
                     // Update batch status and dates
-                    $updateData = ['status' => $newStage];
+                    $updateData = ['status' => $normalizedNewStage];
                     
-                    switch ($newStage) {
+                    switch ($normalizedNewStage) {
+                        case 'cloning':
+                            $updateData['clone_date'] = now();
+                            break;
                         case 'vegetative':
                             $updateData['veg_start_date'] = now();
                             break;
-                        case 'flower':
+                        case 'flowering':
                             $updateData['flower_start_date'] = now();
                             break;
                         case 'harvest':
@@ -102,8 +104,8 @@ class EditBatch extends EditRecord
                         'model_id' => $batch->id,
                         'changes' => [
                             'status' => [
-                                'before' => $oldStage,
-                                'after' => $newStage,
+                                'before' => $normalizedOldStage,
+                                'after' => $normalizedNewStage,
                             ],
                         ],
                         'ip_address' => request()->ip(),
@@ -112,7 +114,7 @@ class EditBatch extends EditRecord
 
                     Notification::make()
                         ->title('Stage Progressed')
-                        ->body("Batch {$batch->batch_code} progressed from {$oldStage} to {$newStage}")
+                        ->body("Batch {$batch->batch_code} progressed from {$normalizedOldStage} to {$normalizedNewStage}")
                         ->success()
                         ->send();
 
@@ -175,5 +177,13 @@ class EditBatch extends EditRecord
             ]);
         }
     }
-}
 
+    protected function normalizeStage(?string $stage): string
+    {
+        return match ($stage) {
+            'clone', 'propagation' => 'cloning',
+            'flower' => 'flowering',
+            default => $stage ?? 'cloning',
+        };
+    }
+}

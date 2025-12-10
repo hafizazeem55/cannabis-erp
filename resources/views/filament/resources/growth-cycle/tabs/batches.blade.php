@@ -76,10 +76,10 @@
                                 <td class="whitespace-nowrap px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
                                     <x-filament::badge
                                         :color="match ($batch->status) {
-                                            'clone', 'propagation' => 'gray',
+                                            'cloning', 'clone', 'propagation' => 'gray',
                                             'vegetative' => 'info',
-                                            'flower' => 'warning',
-                                            'harvest', 'completed' => 'success',
+                                            'flowering', 'flower' => 'warning',
+                                            'harvest', 'drying', 'curing', 'packaging', 'completed' => 'success',
                                             'cancelled' => 'danger',
                                             default => 'secondary',
                                         }"

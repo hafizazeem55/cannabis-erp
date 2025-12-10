@@ -6,11 +6,12 @@ use Illuminate\Support\Facades\DB;
 return new class extends Migration
 {
     private array $stages = [
-        'clone',
-        'propagation',
+        'cloning',
         'vegetative',
-        'flower',
+        'flowering',
         'harvest',
+        'drying',
+        'curing',
         'packaging',
         'completed',
         'cancelled',
@@ -20,7 +21,7 @@ return new class extends Migration
     {
         $enum = "'" . implode("','", $this->stages) . "'";
 
-        DB::statement("ALTER TABLE batches MODIFY COLUMN status ENUM($enum) NOT NULL DEFAULT 'clone'");
+        DB::statement("ALTER TABLE batches MODIFY COLUMN status ENUM($enum) NOT NULL DEFAULT 'cloning'");
     }
 
     public function down(): void

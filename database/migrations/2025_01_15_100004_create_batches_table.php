@@ -18,14 +18,16 @@ return new class extends Migration
             
             // Batch status and stage
             $table->enum('status', [
-                'clone',
-                'propagation',
+                'cloning',
                 'vegetative',
-                'flower',
+                'flowering',
                 'harvest',
+                'drying',
+                'curing',
+                'packaging',
                 'completed',
                 'cancelled'
-            ])->default('clone');
+            ])->default('cloning');
             
             // Plant counts
             $table->integer('initial_plant_count')->default(0);

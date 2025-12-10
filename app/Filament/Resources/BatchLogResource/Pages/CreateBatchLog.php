@@ -24,7 +24,7 @@ class CreateBatchLog extends CreateRecord
                 $data['room_id'] = $batch->room_id;
             }
             if (empty($data['stage'])) {
-                $data['stage'] = $batch?->status;
+                $data['stage'] = BatchLogResource::normalizeStage($batch?->status);
             }
         }
 
@@ -35,6 +35,7 @@ class CreateBatchLog extends CreateRecord
     {
         $batchLog = $this->record;
         $batch = $batchLog->batch;
+        $normalizedStatus = BatchLogResource::normalizeStage($batch->status);
 
         // Update batch plant counts if provided
         if ($batchLog->plant_count !== null) {
@@ -48,21 +49,19 @@ class CreateBatchLog extends CreateRecord
 
         // Recalculate progress percentage based on logs
         $totalLogs = $batch->batchLogs()->count();
-        $expectedDays = 0;
-        
-        // Calculate expected days based on current stage
-        switch ($batch->status) {
-            case 'clone':
-            case 'propagation':
-                $expectedDays = 14; // Example: 2 weeks for propagation
-                break;
-            case 'vegetative':
-                $expectedDays = $batch->strain->expected_vegetative_days ?? 30;
-                break;
-            case 'flower':
-                $expectedDays = $batch->strain->expected_flowering_days ?? 60;
-                break;
-        }
+        $stageDurations = [
+            'cloning' => 14,
+            'clone' => 14,
+            'propagation' => 14,
+            'vegetative' => $batch->strain->expected_vegetative_days ?? 30,
+            'flowering' => $batch->strain->expected_flowering_days ?? 60,
+            'flower' => $batch->strain->expected_flowering_days ?? 60,
+            'harvest' => 7,
+            'drying' => 10,
+            'curing' => 14,
+            'packaging' => 7,
+        ];
+        $expectedDays = $stageDurations[$normalizedStatus] ?? 0;
 
         if ($expectedDays > 0) {
             $progress = min(100, ($totalLogs / $expectedDays) * 100);

@@ -12,18 +12,23 @@ return new class extends Migration
             $table->id();
             $table->foreignId('batch_id')->constrained()->onDelete('cascade');
             $table->enum('from_stage', [
-                'clone',
-                'propagation',
+                'cloning',
                 'vegetative',
-                'flower',
-                'harvest'
+                'flowering',
+                'harvest',
+                'drying',
+                'curing',
+                'packaging',
+                'completed',
             ])->nullable();
             $table->enum('to_stage', [
-                'clone',
-                'propagation',
+                'cloning',
                 'vegetative',
-                'flower',
+                'flowering',
                 'harvest',
+                'drying',
+                'curing',
+                'packaging',
                 'completed'
             ]);
             $table->date('transition_date');

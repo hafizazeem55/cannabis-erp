@@ -31,7 +31,7 @@ class BatchSummaryStats extends BaseWidget
             ->count();
 
         $floweringBatches = Batch::where('is_active', true)
-            ->whereIn('status', ['flower', 'flowering'])
+            ->whereIn('status', ['flowering', 'flower'])
             ->count();
 
         $harvestReadyBatches = Batch::where('is_active', true)
@@ -48,7 +48,7 @@ class BatchSummaryStats extends BaseWidget
                 ->descriptionIcon('heroicon-m-cube')
                 ->color('success'),
             Card::make('In Flowering', $floweringBatches)
-                ->description('Batches in flower rooms')
+                ->description('Batches in flowering stage')
                 ->descriptionIcon('heroicon-m-sparkles')
                 ->color('warning'),
             Card::make('Ready for Harvest', $harvestReadyBatches)

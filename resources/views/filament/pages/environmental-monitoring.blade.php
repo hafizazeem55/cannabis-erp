@@ -188,12 +188,14 @@
         @if($activePrimaryTab === 'thresholds')
     @php
                 $stageLabels = [
-                    'clone' => 'Clone Stage',
-                    'propagation' => 'Propagation Stage',
+                    'cloning' => 'Cloning Stage',
                     'vegetative' => 'Vegetative Stage',
-                    'flower' => 'Flower Stage',
+                    'flowering' => 'Flowering Stage',
                     'harvest' => 'Harvest Stage',
-                    'completed' => 'Completed / Cure',
+                    'drying' => 'Drying Stage',
+                    'curing' => 'Curing Stage',
+                    'packaging' => 'Packaging Stage',
+                    'completed' => 'Completed',
                 ];
                 $parameterIcons = [
                     'temperature' => 'heroicon-o-fire',

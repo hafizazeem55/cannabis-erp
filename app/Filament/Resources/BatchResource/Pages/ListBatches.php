@@ -35,14 +35,20 @@ class ListBatches extends ListRecords
             'active' => Tab::make('Active')
                 ->modifyQueryUsing(fn (Builder $query) => $query->where('is_active', true)
                     ->whereNotIn('status', ['completed', 'cancelled'])),
-            'clone' => Tab::make('Clone/Propagation')
-                ->modifyQueryUsing(fn (Builder $query) => $query->whereIn('status', ['clone', 'propagation'])),
+            'cloning' => Tab::make('Cloning')
+                ->modifyQueryUsing(fn (Builder $query) => $query->whereIn('status', ['cloning', 'clone', 'propagation'])),
             'vegetative' => Tab::make('Vegetative')
                 ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'vegetative')),
-            'flower' => Tab::make('Flower')
-                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'flower')),
+            'flowering' => Tab::make('Flowering')
+                ->modifyQueryUsing(fn (Builder $query) => $query->whereIn('status', ['flowering', 'flower'])),
             'harvest' => Tab::make('Harvest')
                 ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'harvest')),
+            'drying' => Tab::make('Drying')
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'drying')),
+            'curing' => Tab::make('Curing')
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'curing')),
+            'packaging' => Tab::make('Packaging')
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'packaging')),
             'completed' => Tab::make('Completed')
                 ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'completed')),
         ];

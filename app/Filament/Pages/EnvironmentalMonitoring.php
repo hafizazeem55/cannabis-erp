@@ -31,11 +31,13 @@ class EnvironmentalMonitoring extends Page
     public array $thresholdsByStage = [];
 
     protected array $stageOrder = [
-        'clone',
-        'propagation',
+        'cloning',
         'vegetative',
-        'flower',
+        'flowering',
         'harvest',
+        'drying',
+        'curing',
+        'packaging',
         'completed',
     ];
 
